@@ -9,7 +9,7 @@ setup(name='google_finance',
       license='MIT',
       packages=['google_finance'],
       install_requires=[
-          'requests',
+          'requests', 'python-dateutil'
       ],
       test_suite='nose.collector',
       tests_require=['nose'],
