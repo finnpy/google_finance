@@ -1,8 +1,14 @@
 import json
-import urllib
-from collections import namedtuple
+import sys
 
+from collections import namedtuple
 import requests
+import dateutil.parser
+try:
+    from urllib import urlencode
+except ImportError:
+    from urllib.parse import urlencode
+
 
 field_map = {
     "id": "id",
@@ -42,38 +48,52 @@ def quotes(symbols):
     if isinstance(symbols, str):
         symbols = [symbols]
     query_list = ",".join(symbols)
-    return _get_all("/finance/info", {"client":"ig", "q":query_list}, shape=Price)
+    return _get_all("/finance/info", {"client": "ig", "q": query_list}, _convert_price)
+
+
+def _convert_price(js):
+    d = _rename_fields(js)
+    print(d)
+    try:
+        d['last_trade_time'] = dateutil.parser.parse(d['last_trade_time'])  # TODO: improve
+    except ValueError as err:
+        print("================", err, ":")
+    return Price(**d)
+
+
+def _rename_fields(d):
+    # print("Before:", d.keys())
+    # for k in field_map.keys():
+    #     print(k, "->", field_map[k])
+    for k in field_map.keys():
+        d[field_map[k]] = d.pop(k)
+    # print("After:", d.keys())
+    return d
 
 
 # ---------------------------------------------------------------
 
-def _rename_fields(d):
-    # print(d.keys())
-    for k in d.keys():
-        # print(k, "->", field_map[k])
-        d[field_map[k]] = d.pop(k)
-    return d
-
 
 def _get(resource, params):
-    query = "?" + urllib.urlencode(params)
+    query = "?" + urlencode(params)
 
     uri = "http://finance.google.com{}{}".format(resource, query)
     r = requests.get(uri)
     # print(r.status_code, len(r.content))
-    return json.loads(r.content.replace("//", ""))
+    print(r.content)
+    return json.loads(r.content.replace(b"//", b""))
 
 
-def _get_all(resource, params, shape):
+def _get_all(resource, params, convert_f):
     results = []
     f = open("raw.text", "w")
     js = _get(resource, params)
     f.write(json.dumps(js) + "\n")
-    results.extend(map(lambda s: shape(**_rename_fields(s)), js))
+    results.extend(map(convert_f, js))
     return results
 
 
 if __name__ == "__main__":
     print(quotes("TSLA"))
     print(quotes(["TSLA"]))
-    print(quotes(["AAPL","IBM","CSCO"]))
+    print(quotes(["AAPL", "IBM", "CSCO"]))
